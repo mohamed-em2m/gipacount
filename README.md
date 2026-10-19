@@ -154,8 +154,8 @@ docs/                  paper spec + reproduction report
 
 * [`docs/paper_spec.md`](docs/paper_spec.md) — the paper distilled into an
   equation→module map, a hyper-parameter table with source tags, an
-  *Ambiguities & Assumptions* table (A1–A20) and the expected results with
-  tolerances.
+  *Ambiguities & Assumptions* table (A1–A20 and A12b) and the expected results
+  with tolerances.
 * [`docs/reproduction_report.md`](docs/reproduction_report.md) — what was
   reproduced, how it was verified, and where this implementation deviates.
 

@@ -25,10 +25,11 @@ Delivered:
 * a test suite covering shapes, gradient flow, parameter budget, determinism,
   loss behaviour, data/geometry conventions and an end-to-end smoke run;
 * `docs/paper_spec.md` (the Phase-0 specification) with an equation→module map and a
-  table of 20 documented assumptions (A1–A20).
+  table of documented assumptions (A1–A20 plus A12b).
 
-**Not delivered / out of scope** (see §6): the full 200-epoch FSC-147 training run, and
-the cross-dataset transfer experiments (CARPK, PUCPR+, ShanghaiTech).
+**Not delivered / out of scope** (see §6): the cross-dataset transfer experiments
+(CARPK, PUCPR+, ShanghaiTech). The 200-epoch FSC-147 run **is** launched and
+documented in §5b (it takes about a day on a single RTX A6000).
 
 ---
 
@@ -48,6 +49,28 @@ make smoke              # uv run gipacount train --config configs/smoke.yaml
 
 * `scripts/download_data.py` fetches the small FSC-147 metadata from GitHub and can
   ingest a manually downloaded image archive; the **synthetic** dataset needs nothing.
+  The FSC-147 image archive (`images_384_VarV2.zip`, 6146 files) was obtained from a
+  public Hugging Face mirror and extracted under `data/fsc147/`.
+
+### 2.1 GPU environment used for the full run
+
+The shipped dependency group pins **CPU** torch wheels so `uv sync` works anywhere.
+For the full training run the venv was switched to CUDA in place, without touching the
+project metadata:
+
+```bash
+uv pip install --python .venv/bin/python \
+    --index-url https://download.pytorch.org/whl/cu130 --reinstall torch torchvision
+# -> torch 2.14.1+cu130, torchvision 0.29.1+cu130, CUDA available: True
+```
+
+Because `uv run` re-syncs the environment back to the locked CPU wheels, the long run is
+launched with the venv interpreter directly:
+
+```bash
+.venv/bin/python scripts/train.py --config configs/default.yaml \
+    --run-name fsc147_vit_3shot_200ep -s trainer.num_workers=16
+```
 
 ---
 
@@ -58,9 +81,9 @@ Run on the development machine (CPU, 8-core container), Python 3.11.16.
 | Check | Command | Result |
 |---|---|---|
 | Lint | `ruff check .` | **clean** |
-| Format | `ruff format --check .` | **clean** (53 files) |
+| Format | `ruff format --check .` | **clean** (44 files) |
 | Types | `mypy src` (strict) | **clean** (38 files) |
-| Tests | `pytest` | **92 passed**, ~65 s |
+| Tests | `pytest` | **92 passed**, ~70 s |
 | Smoke train | `gipacount train -c configs/smoke.yaml` | **~8 s**, loss **1301.3 → 1108.7** over 2 epochs |
 
 The suite asserts, among other things:
@@ -90,6 +113,48 @@ The suite asserts, among other things:
 3. `build_point_map` used fancy-index assignment, which drops all but one of a set of
    duplicate cells; switched to `index_add_` so mass accumulates. Fixed in
    `data/point_map.py`.
+4. `scripts/download_data.py::_strip_common_prefix` treated the archive's own
+   `images_384_VarV2/` directory as a wrapper and stripped it, flattening 6146 images
+   into the dataset root (so the dataset failed its own verification check). Found by
+   actually running the downloader on the real archive. Fixed in `scripts/download_data.py`.
+
+### Profiling the real 1024 px step (and why the loss was ~80 % of it)
+
+The first real-data step on the A6000 took **4.5 s**. Timing each component in isolation
+revealed the network was *not* the problem:
+
+| Component | Time (batch 4, 1024 px) |
+|---|---|
+| frozen ViT-S/16 backbone | 31 ms |
+| prompt tokens (Eq. 1) | 0.6 ms |
+| GFIM, 6 layers (Eqs. 2–5) | 13 ms |
+| PLAM (Eqs. 6–10) | 2 ms |
+| decoder (Eq. 11) | 6 ms |
+| **Generalized Loss (Eq. 12)** | **1417 ms** |
+
+The forward pass totals ~53 ms; the unbalanced-OT solve was ~27× more expensive. Three
+fixes, none of which change the objective:
+
+1. **Kernel reuse.** The Sinkhorn loop evaluated `exp(−C/ε)` *twice* per iteration (once
+   for `Kv`, once for `Kᵀu`) even though both use the same `K`. It is now materialised
+   once per ε step (streamed chunk-wise above `loss.kernel_cache_mb`). Verified
+   equivalent: max relative difference in `v*` ≈ 5e-7 (fp32 round-off).
+2. **Gram distances.** `torch.cdist(...,p=2).pow(2)` computed a square root only to
+   square it again; replaced by `|x|² + |y|² − 2x·yᵀ` (BLAS, no `sqrt`).
+3. **Iteration budget.** `sinkhorn_iters` 50 → **20**, per Wan et al.'s own statement
+   that ε-scaling "needs less than 20 iterations until converge"; and the loss runs in
+   `float32` (measured difference from `float64`: ~5e-7 relative).
+
+Effect on the median step, batch 4 at 1024 px:
+
+| Configuration | Median step | 200-epoch projection |
+|---|---|---|
+| start (`float64`, 50 iters, `cdist`, double exp) | 4.53 s | ~9.4 days |
+| + 16 loader workers | 1.87 s | ~4.6 days |
+| + kernel reuse & Gram distances | 0.34 s | ~20 h |
+| + 20 iterations, `float32` | **0.25 s** | **~15 h** |
+
+Peak GPU memory is 5.9 GB, so there is ample headroom on a 48 GB card.
 
 ---
 
@@ -144,11 +209,47 @@ checkpoint is unnamed (A1) — we use `vit_small_patch16_224` (21.7 M of weights
 
 ---
 
+## 5b. The full FSC-147 run (in progress)
+
+The paper's headline setting (`configs/default.yaml`: 1024 px, ViT-S/16, 3-shot,
+batch 4, 200 epochs, CCSS p=0.5, Generalized Loss) was launched on the real FSC-147
+dataset on a single RTX A6000:
+
+```bash
+.venv/bin/python scripts/train.py --config configs/default.yaml \
+    --run-name fsc147_vit_3shot_200ep -s trainer.num_workers=16
+```
+
+* train 3659 images / 915 steps per epoch, val 1286 images;
+* ~0.14 s per training step ⇒ ~2–3 min per epoch, plus ~1.6 min validation ⇒
+  **≈15–20 h for all 200 epochs**;
+* peak GPU memory 5.9 GB; checkpoints are written every epoch (`last.pt` + `best.pt`
+  by val MAE), so the run is resumable with `--resume runs/fsc147_vit_3shot_200ep/last.pt`;
+* artefacts land in `runs/fsc147_vit_3shot_200ep/` (`config.yaml`, `run_info.json`,
+  `last.pt`, `best.pt`, `final_metrics.json`).
+
+Observed at launch: epoch 0 loss **66031 → 65168** over the first 150 steps, i.e. the
+model is already descending from its initial (softplus-over-the-whole-map) scale.
+
+> **Status.** Training was still running when this report was written; the table below
+> is filled in as the run progresses (per-epoch val MAE/RMSE come from the logger and
+> `final_metrics.json`).
+
+| Checkpoint | val MAE | val RMSE | Paper (val) |
+|---|---|---|---|
+| epoch 1 | *pending* | *pending* | 8.92 / 31.78 |
+| epoch 50 | *pending* | *pending* | |
+| epoch 100 | *pending* | *pending* | |
+| epoch 200 (final) | *pending* | *pending* | |
+
+---
+
 ## 6. Deviations, limitations and not-reproduced items
 
-1. **Full training run.** We do not run the paper's 200-epoch, 1024-px FSC-147 training
-   here (data access + GPU time). All code paths, configs and the evaluation protocol
-   are in place; `configs/default.yaml` is the runnable recipe.
+1. **Full training run.** The 200-epoch, 1024-px FSC-147 run is launched and documented
+   in §5b; it takes about a day of wall-clock on one A6000, so its final numbers are
+   reported when it completes. All code paths, configs and the evaluation protocol are
+   in place; `configs/default.yaml` is the runnable recipe.
 2. **Cross-dataset transfer.** CARPK/PUCPR+/ShanghaiTech configs are intentionally
    **not shipped** (the chosen data scope was FSC-147 + synthetic only). The paper does
    not specify how exemplars are obtained on these single-category datasets; assumption
@@ -165,13 +266,21 @@ checkpoint is unnamed (A1) — we use `vit_small_patch16_224` (21.7 M of weights
    variant is a config change.
 6. **Output activation (A9).** `softplus` (non-negative mass for the Generalized Loss),
    multiplied by a down-sampled padding mask.
-7. **Generalized Loss (A10/A11).** Chunked Sinkhorn with unit-normalised coordinates
-   (the cost matrix would be 262144×M otherwise, and `exp(-C/ε)` underflows with pixel
-   units at `ε=0.01`); `ε=0.01`, `τ=0.5` per the paper, ε-scaling on, 50 iterations.
+7. **Generalized Loss (A10/A11).** Unit-normalised coordinates (the cost matrix would be
+   262144×M otherwise, and `exp(-C/ε)` underflows with pixel units at `ε=0.01`);
+   `ε=0.01`, `τ=0.5` per the paper, ε-scaling on, **20** iterations (Wan et al.: ε-scaling
+   "needs less than 20 iterations until converge"), `float32`. The Gibbs kernel is
+   materialised once per ε step and reused for both Sinkhorn directions; results are
+   identical to the two-`exp` formulation to ~5e-7 relative.
 8. **CCSS batching (A12).** With `P_mix=0.5`, one collage is built per iteration from
    the drawn batch (forward batch = 1); otherwise the batch is trained as single images.
 9. **Duplicate-point rule (A20).** Deterministic radius-1 (then radius-2) reassignment
    of colliding annotations onto neighbouring empty cells, preserving mass.
+10. **Determinism on CUDA (A12b).** `trainer.deterministic` defaults to `false`: with
+    deterministic algorithms enabled, torchvision routes CUDA RoI-align through a
+    lazily `torch.compile`d pure-Python kernel (≈0.5 s/step and it crashes on torch
+    builds whose Inductor is inconsistent, as the CUDA 13.0 wheel tested here). Seeding
+    is unaffected; `deterministic: true` remains the right choice on CPU/CI.
 
 ### Paper self-inconsistencies (flagged, not "fixed")
 
