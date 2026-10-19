@@ -83,9 +83,23 @@ def capture_rng_state() -> RNGState:
 
 
 def restore_rng_state(state: RNGState) -> None:
-    """Restore a snapshot produced by :func:`capture_rng_state`."""
+    """Restore a snapshot produced by :func:`capture_rng_state`.
+
+    The tensors are forced back to the CPU first: ``torch.load`` is normally
+    called with ``map_location=<device>``, which would otherwise move the
+    checkpoint's CPU RNG ByteTensors to CUDA and make ``set_rng_state`` raise
+    ``TypeError: RNG state must be a torch.ByteTensor`` (a CUDA-resident state
+    only breaks :func:`torch.random.set_rng_state`, not the CUDA one).
+    """
     random.setstate(state.python)
     np.random.set_state(state.numpy)
-    torch.random.set_rng_state(state.torch)
+    torch.random.set_rng_state(_cpu_byte_tensor(state.torch))
     if state.cuda and torch.cuda.is_available():
-        torch.cuda.set_rng_state_all(state.cuda)
+        torch.cuda.set_rng_state_all([_cpu_byte_tensor(s) for s in state.cuda])
+
+
+def _cpu_byte_tensor(state: Any) -> Any:
+    """Return ``state`` as a CPU ``uint8`` tensor (no-op when already a CPU state)."""
+    if torch.is_tensor(state):
+        return state.detach().to(device="cpu", dtype=torch.uint8)
+    return state
