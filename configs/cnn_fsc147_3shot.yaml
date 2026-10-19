@@ -1,0 +1,24 @@
+# GIPACount-R: the ResNet variant described in §4.3 ("we also replace the ViT with
+# a ResNet to show the generality of the framework").  Everything else is shared
+# with `default.yaml`.
+#
+#   uv run gipacount train --config configs/cnn_fsc147_3shot.yaml
+#
+# The CNN branch takes ResNet layer3 (stride 16) as the token grid and projects it
+# to `d = 256`, exactly as the ViT branch projects patch tokens.  A1 applies as
+# well: the paper never names the exact checkpoint.
+_base_: ./default.yaml
+
+name: gipacount-resnet-3shot
+
+model:
+  backbone:
+    kind: cnn
+    name: resnet50
+    pretrained: true
+    out_indices: [2]         # layer3 -> stride 16 -> 64x64 tokens at 1024
+    stride: 16
+    token_dim: 256
+    frozen: true
+    unfreeze_last_n: 0
+    train_projection: true

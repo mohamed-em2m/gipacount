@@ -1,0 +1,47 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.ipynb_checkpoints/
+
+# --- Data (never commit datasets) ---
+data/
+datasets/
+*.zip
+*.tar
+*.tar.gz
+!tests/data/*.png
+
+# --- Checkpoints & runs (never commit) ---
+checkpoints/
+runs/
+outputs/
+wandb/
+lightning_logs/
+*.ckpt
+*.pt
+*.pth
+*.safetensors
+
+# --- Env / editors ---
+.env
+.idea/
+.vscode/
+.DS_Store
+
+# --- Generated artefacts ---
+docs/site/
+reports/*.json
+!docs/reproduction_report.md

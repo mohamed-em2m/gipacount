@@ -1,0 +1,13 @@
+# GIPACount with the frozen ViT backbone on FSC-147, 1-shot setting (Table 2).
+#
+#   uv run gipacount train --config configs/vit_fsc147_1shot.yaml
+#
+# Reproduces (paper Table 3, 1-shot): test MAE 10.97 / RMSE 56.85,
+# val MAE 10.83 / RMSE 36.82.  Only the number of exemplar boxes changes relative
+# to `default.yaml`, so this file inherits it.
+_base_: ./default.yaml
+
+name: gipacount-vit-1shot
+
+model:
+  n_exemplars: 1             # [P] §4.3 / Table 2

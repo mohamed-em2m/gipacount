@@ -1,0 +1,7 @@
+# Table 7, row Q7: the full method with the last 3 transformer blocks of the
+# backbone unfrozen (the only row that updates backbone weights).  Paper reports
+# MAE 8.92, a small gain over Q6 -- hence the default keeps the backbone frozen.
+_base_: ../default.yaml
+
+name: ablation-q7
+ablation: q7

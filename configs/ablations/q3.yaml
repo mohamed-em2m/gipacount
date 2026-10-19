@@ -1,0 +1,6 @@
+# Table 7, row Q3: one-way cross-attention + PLAM (prototypes on, CCSS off).
+# Paper reports MAE 17.25.
+_base_: ../default.yaml
+
+name: ablation-q3
+ablation: q3

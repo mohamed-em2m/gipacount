@@ -1,0 +1,7 @@
+# Table 7, row Q4: no interaction at all (GFIM and PLAM disabled), CCSS only.
+# Paper reports MAE 18.83.  NOTE A13: Table 8 Panel B reports the *same* full
+# configuration differently, so treat absolute values loosely.
+_base_: ../default.yaml
+
+name: ablation-q4
+ablation: q4

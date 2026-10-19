@@ -1,0 +1,8 @@
+# Table 7, row Q6: the full method (GFIM + PLAM + CCSS), frozen backbone.
+# This is identical to `configs/default.yaml` except for the run name; it is kept
+# as an explicit row so that the Q1..Q7 sweep is self-contained.  Paper reports
+# MAE 9.15 (cf. A13: Table 8 Panel B says 10.46 for the same setting).
+_base_: ../default.yaml
+
+name: ablation-q6
+ablation: q6

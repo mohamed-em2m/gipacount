@@ -1,0 +1,19 @@
+# Table 9 -- CCSS with a 3x3 collage.  A 3x3 grid needs an image size divisible by
+# 3, so this variant pins a self-consistent 960-px geometry (960/3 = 320 per cell,
+# 960/16 = 60x60 tokens, decoder 60 -> 480 = image_size/2).  The paper reports a
+# small degradation vs 2x2.
+_base_: ../default.yaml
+
+name: ccss-grid-3x3
+
+model:
+  image_size: 960
+  density_size: 480
+
+data:
+  image_size: 960
+  ccss:
+    enabled: true
+    composition: random
+    grid: 3
+    sub_image_size: 320

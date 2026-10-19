@@ -1,0 +1,6 @@
+# Table 7, row Q5: GFIM + PLAM, no CCSS.  Isolates the Category-Contrastive
+# Supervision Strategy.  Paper reports MAE 10.74.
+_base_: ../default.yaml
+
+name: ablation-q5
+ablation: q5

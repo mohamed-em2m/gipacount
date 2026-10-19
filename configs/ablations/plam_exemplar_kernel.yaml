@@ -1,0 +1,12 @@
+# Table 8, Panel B -- the depthwise kernel is predicted from the *exemplar* tokens
+# instead of the learnable prototypes (PLAM's "w/o prototype" ablation).  The
+# kernel then changes per image and loses the category-level prior.
+_base_: ../default.yaml
+
+name: plam-exemplar-kernel
+
+model:
+  plam:
+    enabled: true
+    n_prototypes: 9
+    kernel_source: exemplar

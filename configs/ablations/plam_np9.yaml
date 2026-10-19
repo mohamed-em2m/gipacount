@@ -1,0 +1,11 @@
+# Table 8, Panel B -- PLAM with the paper's 9 prototype queries (3x3 kernel).
+# This is the default and the best-balanced setting.
+_base_: ../default.yaml
+
+name: plam-np9
+
+model:
+  plam:
+    enabled: true
+    n_prototypes: 9
+    kernel_source: prototype

@@ -1,0 +1,143 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gipacount"
+version = "0.1.0"
+description = "GIPACount: global interaction and prototype-guided aggregation network for exemplar-conditioned few-shot object counting (Neural Networks 2027)"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.11"
+authors = [{ name = "GIPACount reproduction" }]
+keywords = ["few-shot object counting", "class-agnostic counting", "density estimation", "computer vision"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+  "torch>=2.4",
+  "torchvision>=0.19",
+  "timm>=1.0.9",
+  "numpy>=1.26",
+  "scipy>=1.11",
+  "pillow>=10.2",
+  "pydantic>=2.7",
+  "pydantic-settings>=2.3",
+  "PyYAML>=6.0",
+  "typer>=0.12",
+  "rich>=13.7",
+  "tqdm>=4.66",
+]
+
+[project.optional-dependencies]
+# Heavy / hardware-specific extras. Install with `uv sync --extra <name>`.
+tracking = ["tensorboard>=2.16", "wandb>=0.17"]
+onnx = ["onnx>=1.16", "onnxruntime>=1.18"]
+viz = ["matplotlib>=3.8"]
+
+[project.scripts]
+gipacount = "gipacount.cli:app"
+
+[dependency-groups]
+dev = [
+  "pytest>=8.2",
+  "pytest-cov>=5.0",
+  "pytest-timeout>=2.3",
+  "ruff>=0.6",
+  "mypy>=1.11",
+  "pre-commit>=3.7",
+]
+docs = ["mkdocs-material>=9.5"]
+notebooks = ["jupyterlab>=4.2", "matplotlib>=3.8", "seaborn>=0.13"]
+
+[tool.uv]
+# Cache and environments are per-project; lockfile is committed.
+default-groups = ["dev"]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+# CPU wheels by default so `uv sync` works on any machine.
+# CUDA users: replace the index URL with
+#   https://download.pytorch.org/whl/cu121  (or cu124 / cu126 / cu128)
+torch = { index = "pytorch-cpu" }
+torchvision = { index = "pytorch-cpu" }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gipacount"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests", "scripts"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "NPY", "PT", "RUF", "C4", "TID"]
+ignore = [
+  "E501",   # long lines in docstrings/tables
+  "B008",   # typer uses function calls in defaults
+  "RUF012", # mutable class attrs are fine for nn.Module registries
+  "RUF002", # ×/− in docstrings describe the paper's equations
+  "RUF003", # ×/− in comments describe the paper's equations
+  "RUF046", # int(round(x)) is kept explicit for readability
+  "NPY002", # the global np.random seeding API is exactly what set_seed needs
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["PT011", "B011", "PT018", "RUF043"]
+
+[tool.ruff.lint.flake8-pytest-style]
+fixture-parentheses = false
+
+[tool.ruff.lint.isort]
+known-first-party = ["gipacount"]
+
+[tool.ruff.format]
+quote-style = "double"
+docstring-code-format = true
+
+[tool.mypy]
+python_version = "3.11"
+files = ["src/gipacount"]
+strict = true
+warn_return_any = false
+warn_unused_ignores = true
+disallow_untyped_defs = true
+plugins = []
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["timm.*", "torchvision.*", "scipy.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = "-ra --strict-markers --strict-config"
+testpaths = ["tests"]
+timeout = 900
+markers = [
+  "slow: tests that take longer than ~20s",
+  "gpu: tests that require CUDA",
+  "network: tests that download pretrained weights or datasets",
+]
+
+[tool.coverage.run]
+source = ["src/gipacount"]
+branch = true
+omit = ["src/gipacount/cli.py"]
+
+[tool.coverage.report]
+exclude_lines = [
+  "pragma: no cover",
+  "if TYPE_CHECKING:",
+  "raise NotImplementedError",
+  "if __name__ == .__main__.:",
+]
+show_missing = true

@@ -1,0 +1,11 @@
+# Table 8, Panel A -- only the exemplar->image direction (Eqs. 3-4) is kept; the
+# image->prompt branch (Eq. 6's counterpart) is dropped.  Paper reports ECR 0.73.
+_base_: ../default.yaml
+
+name: gfim-prompt-to-image-only
+
+model:
+  gfim:
+    use_prompt_self_attention: true
+    use_prompt_to_image: true
+    use_image_to_prompt: false

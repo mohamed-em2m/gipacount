@@ -1,0 +1,4 @@
+# Table 8, Panel A -- GFIM internals (GFIM full ECR 0.78).
+_base_: ../default.yaml
+
+name: gfim-full

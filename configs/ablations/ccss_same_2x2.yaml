@@ -1,0 +1,12 @@
+# Table 9 -- CCSS composition restricted to the anchor's own category ("same").
+# Less contrastive than `random`, so the paper's numbers are worse.
+_base_: ../default.yaml
+
+name: ccss-same-2x2
+
+data:
+  ccss:
+    enabled: true
+    composition: same
+    grid: 2
+    sub_image_size: 512

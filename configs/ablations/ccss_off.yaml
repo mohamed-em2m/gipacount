@@ -1,0 +1,8 @@
+# Table 9 -- CCSS disabled: single images only, no category-contrastive collage.
+_base_: ../default.yaml
+
+name: ccss-off
+
+data:
+  ccss:
+    enabled: false

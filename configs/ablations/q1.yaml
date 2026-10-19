@@ -1,0 +1,7 @@
+# Table 7, row Q1: one-way exemplar->image cross-attention only.  No prompt
+# self-attention, no image->prompt branch, no global prototypes, no PLAM, no CCSS.
+# Expected to be the *worst* of Q1..Q6 (the paper reports MAE 21.32).
+_base_: ../default.yaml
+
+name: ablation-q1
+ablation: q1

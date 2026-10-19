@@ -1,0 +1,96 @@
+# Smoke test: tiny synthetic data, CPU, seconds - exercises data -> CCSS -> GFIM ->
+# PLAM -> Generalized Loss -> metrics end to end.  See `make smoke`.
+#
+# Geometry check: image_size 128 / stride 16 = 8x8 tokens; the decoder's three
+# stride-2 transposed convolutions map 8 -> 64 = density_size (== image_size/2,
+# exactly the paper's 64 -> 512 relationship).
+name: smoke
+
+ablation: none
+
+model:
+  image_size: 128
+  density_size: 64
+  token_dim: 128
+  n_exemplars: 3
+  backbone:
+    kind: vit
+    name: vit_small_patch16_224
+    pretrained: false        # offline / CI friendly (A1)
+    stride: 16
+    token_dim: 128
+    frozen: true
+  gfim:
+    layers: 1                # paper: 6
+    n_heads: 4               # paper: 8
+    mlp_ratio: 2.0           # paper: 8.0 (hidden 2048)
+    fusion_mlp_ratio: 2.0
+    dropout: 0.0
+    pos_encoding: learnable
+    pos_from_layer: 0
+  plam:
+    enabled: true
+    n_prototypes: 9
+    kernel_source: prototype
+  decoder:
+    channels: [32, 16, 8]    # 8 -> 16 -> 32 -> 64
+    norm: layernorm
+    activation: relu
+
+data:
+  name: synthetic
+  root: data
+  image_size: 128
+  synthetic_image_size: 128
+  synthetic_train_size: 8
+  synthetic_val_size: 4
+  num_workers: 0
+  pin_memory: false
+  random_hflip: true
+  color_jitter: true
+  ccss:
+    enabled: true
+    p_mix: 0.5
+    grid: 2
+    sub_image_size: 64       # must equal image_size / grid
+    category_filter: true
+    composition: random
+
+loss:
+  name: generalized
+  epsilon: 0.01
+  tau: 0.5
+  sinkhorn_iters: 10
+  epsilon_scaling: true
+  chunk_size: 1024
+  coord_norm: unit
+  dtype: float64
+
+optim:
+  name: adam
+  lr: 1.0e-4
+  weight_decay: 1.0e-4
+  scheduler: none
+
+trainer:
+  epochs: 2
+  batch_size: 4              # >= grid^2 so CCSS can activate
+  steps_per_epoch: null
+  val_every: 1
+  seed: 0
+  deterministic: true
+  amp: false
+  device: cpu
+  output_dir: runs
+  run_name: smoke
+  num_workers: 0
+  log_every: 2
+  save_best: true
+  save_last: true
+  tensorboard: false
+  wandb: false
+
+eval:
+  split: val
+  batch_size: 2
+  num_workers: 0

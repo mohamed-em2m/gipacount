@@ -1,0 +1,9 @@
+# Table 8, Panel A -- GFIM without the post-stack prompt->image fusion (Eq. 5).
+# Paper reports ECR 0.74 vs 0.78 for the full module.
+_base_: ../default.yaml
+
+name: gfim-no-final-fusion
+
+model:
+  gfim:
+    use_final_fusion: false

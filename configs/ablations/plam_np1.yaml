@@ -1,0 +1,11 @@
+# Table 8, Panel B -- PLAM with a single prototype query (1x1 depthwise kernel).
+# The kernel degenerates to a point-wise response; paper's worst balance.
+_base_: ../default.yaml
+
+name: plam-np1
+
+model:
+  plam:
+    enabled: true
+    n_prototypes: 1
+    kernel_source: prototype

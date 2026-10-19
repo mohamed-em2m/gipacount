@@ -1,0 +1,6 @@
+# Table 7, row Q2: bidirectional exemplar<->image cross-attention (no prompt
+# self-attention), still without prototypes/PLAM/CCSS.  Paper reports MAE 18.98.
+_base_: ../default.yaml
+
+name: ablation-q2
+ablation: q2

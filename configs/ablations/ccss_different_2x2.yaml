@@ -1,0 +1,11 @@
+# Table 9 -- CCSS composition forced to categories *different* from the anchor's.
+_base_: ../default.yaml
+
+name: ccss-different-2x2
+
+data:
+  ccss:
+    enabled: true
+    composition: different
+    grid: 2
+    sub_image_size: 512

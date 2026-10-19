@@ -1,0 +1,11 @@
+# Table 9 -- CCSS with random-category 2x2 collages (the paper's default, best).
+_base_: ../default.yaml
+
+name: ccss-random-2x2
+
+data:
+  ccss:
+    enabled: true
+    composition: random
+    grid: 2
+    sub_image_size: 512

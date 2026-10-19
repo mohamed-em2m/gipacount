@@ -1,0 +1,125 @@
+# Default configuration: the paper's full FSC-147 setting (§4.3) with the frozen
+# ViT backbone (GIPACount in Table 2).  Requires the FSC-147 data and a GPU for
+# the 1024-px / 200-epoch run:
+#
+#   python scripts/download_data.py --dataset fsc147 --root data/fsc147
+#   uv run gipacount train --config configs/default.yaml
+#
+# Reproduces (paper Table 2, 3-shot): test MAE 9.15 / RMSE 45.90,
+# val MAE 8.92 / RMSE 31.78.  See docs/paper_spec.md (A1, A13, A14) for caveats.
+name: gipacount-vit-3shot
+
+ablation: none
+
+model:
+  image_size: 1024           # [P] §4.3
+  density_size: 512          # [P] §4.3 (image_size / 2)
+  token_dim: 256             # [P] §4.3, d
+  n_exemplars: 3             # [P] §4.3 / Table 2
+  tokens_per_exemplar: 9     # [P] N_E = K x 9
+  output_activation: softplus  # A9
+  mask_padding_in_output: true
+  mask_padding_in_attention: true
+  backbone:
+    kind: vit
+    name: vit_small_patch16_224   # A1: patch-16 ViT -> 64x64 tokens at 1024
+    pretrained: true
+    stride: 16
+    token_dim: 256
+    frozen: true
+    unfreeze_last_n: 0
+    train_projection: true
+  gfim:
+    layers: 6                # [P] §4.3
+    n_heads: 8               # [P] §4.3
+    mlp_ratio: 8.0           # [P] hidden 2048 / d 256
+    fusion_mlp_ratio: 8.0
+    dropout: 0.0
+    attn_dropout: 0.0
+    pre_norm: true
+    use_prompt_self_attention: true
+    use_prompt_to_image: true
+    use_image_to_prompt: true
+    use_final_fusion: true   # [P] Eq. 5
+    cross_attn_fusion: residual_mlp   # A5
+    pos_encoding: learnable  # A6
+    pos_from_layer: 1        # [P] "from the second layer onward"
+    pos_on_image: true
+    pos_on_prompt: true
+  plam:
+    enabled: true
+    n_prototypes: 9          # [P] N_P = 9 -> 3x3 kernel
+    kernel_source: prototype
+    channel_fuse: true
+  decoder:
+    channels: [128, 64, 32]  # A8
+    norm: layernorm          # [P] §4.3
+    activation: relu         # [P] §4.3
+
+data:
+  name: fsc147
+  root: data/fsc147
+  image_size: 1024
+  split_file: Train_Test_Val_FSC_147.json
+  annotation_file: annotation_FSC147_384.json
+  image_dir: images_384_VarV2
+  class_file: ImageClasses_FSC147.txt
+  exemplar_sampling: random
+  num_workers: 4
+  pin_memory: true
+  random_hflip: true         # [P] §4.3
+  color_jitter: true         # [P] §4.3
+  color_jitter_strength: 0.4
+  ccss:
+    enabled: true
+    p_mix: 0.5               # [P] §4.3 / Alg. 1
+    grid: 2                  # [P] Table 9
+    sub_image_size: 512      # [P] §3.5
+    category_filter: true    # [P] Eq. 15
+    composition: random      # [P] Table 9
+    duplicate_radius: 1      # [P] §3.5
+
+loss:                        # [P] Eq. 12, §4.3
+  name: generalized
+  epsilon: 0.01
+  tau: 0.5
+  sinkhorn_iters: 50
+  epsilon_scaling: true
+  epsilon_scale_start: 16.0
+  chunk_size: 8192
+  coord_norm: unit           # A10
+  dtype: float64             # A11
+  point_loss: l1
+
+optim:                       # [P] §4.3
+  name: adam
+  lr: 1.0e-4
+  weight_decay: 1.0e-4
+  betas: [0.9, 0.999]
+  scheduler: none            # A16: no schedule is specified
+  grad_clip_norm: null
+
+trainer:
+  epochs: 200                # [P] §4.3 / Alg. 1
+  batch_size: 4              # [P] §4.3
+  steps_per_epoch: null
+  val_every: 1
+  seed: 0
+  deterministic: true
+  amp: true
+  device: auto
+  output_dir: runs
+  run_name: null
+  save_best: true
+  save_last: true
+  log_every: 50
+  num_workers: null
+  tensorboard: false
+  wandb: false
+
+eval:
+  split: val
+  batch_size: 1
+  num_workers: 0
+  compute_ecr: true
+  ecr_num_composites: 500

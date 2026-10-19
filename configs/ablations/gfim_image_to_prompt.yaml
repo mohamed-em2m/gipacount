@@ -1,0 +1,12 @@
+# Table 8, Panel A -- only the image->prompt direction is kept.  This is the
+# weakest variant in the paper (ECR 0.56): the exemplars never condition the image
+# tokens, so the head cannot localise the target category.
+_base_: ../default.yaml
+
+name: gfim-image-to-prompt-only
+
+model:
+  gfim:
+    use_prompt_self_attention: true
+    use_prompt_to_image: false
+    use_image_to_prompt: true

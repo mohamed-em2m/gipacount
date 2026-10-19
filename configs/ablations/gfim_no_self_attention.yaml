@@ -1,0 +1,9 @@
+# Table 8, Panel A -- GFIM without prompt self-attention (Eq. 2).  Prompt tokens
+# stay static across layers.  Paper reports ECR 0.70.
+_base_: ../default.yaml
+
+name: gfim-no-self-attention
+
+model:
+  gfim:
+    use_prompt_self_attention: false
