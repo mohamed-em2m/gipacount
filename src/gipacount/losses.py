@@ -93,6 +93,7 @@ class GeneralizedLoss(nn.Module):
         super().__init__()
         self.cfg = cfg
         self.dtype = torch.float64 if cfg.dtype == "float64" else torch.float32
+        self._itemsize = 8 if cfg.dtype == "float64" else 4
 
     # ------------------------------------------------------------------ #
     # Geometry helpers
@@ -115,8 +116,34 @@ class GeneralizedLoss(nn.Module):
 
     @staticmethod
     def _sqdist(x: Tensor, y: Tensor) -> Tensor:
-        """``(N, 2) x (M, 2) -> (N, M)`` squared Euclidean distances."""
-        return torch.cdist(x, y, p=2).pow(2)
+        """``(N, 2) x (M, 2) -> (N, M)`` squared Euclidean distances.
+
+        Uses the Gram identity ``|x-y|² = |x|² + |y|² - 2 x·yᵀ`` rather than
+        ``cdist``: it is the same quantity, but it avoids the square root and
+        runs on BLAS.
+        """
+        dist = x @ y.t()
+        dist.mul_(-2.0)
+        dist.add_((x * x).sum(dim=1, keepdim=True))
+        dist.add_((y * y).sum(dim=1).unsqueeze(0))
+        return dist.clamp_min_(0.0)
+
+    def _kernel(self, x: Tensor, y: Tensor, eps: float) -> Tensor | None:
+        """Materialise ``K = exp(-C/ε)`` when it fits the memory budget.
+
+        Building ``K`` once per ε step lets both Sinkhorn directions reuse it
+        (``Kv`` and ``Kᵀu``) instead of evaluating the exponential twice.  This
+        changes nothing numerically — only how often ``exp`` is called.  Returns
+        ``None`` when the ``N × M`` matrix would exceed ``kernel_cache_mb``, in
+        which case the caller streams it chunk-wise via :meth:`_kernel_vec`.
+        """
+        n, m = x.shape[0], y.shape[0]
+        budget = float(self.cfg.kernel_cache_mb) * 1024.0 * 1024.0
+        if m == 0 or n * m * self._itemsize > budget:
+            return None
+        dist = self._sqdist(x, y)
+        dist.div_(-eps)
+        return dist.exp_()
 
     def _kernel_vec(self, x: Tensor, y: Tensor, weights: Tensor, eps: float) -> Tensor:
         """``(K w)_i = Σ_j exp(-C_ij/ε) w_j`` accumulated chunk-wise along ``x``."""
@@ -162,9 +189,13 @@ class GeneralizedLoss(nn.Module):
                     eps_step = eps
                 p = cfg.tau / (cfg.tau + eps_step)
 
-                kv = self._kernel_vec(x, y, v, eps_step)
+                # The same kernel drives both directions: K v (row space) and
+                # K^T u (column space).  Materialising it once per ε step halves
+                # the number of ``exp`` evaluations over the cost matrix.
+                kernel = self._kernel(x, y, eps_step)
+                kv = self._kernel_vec(x, y, v, eps_step) if kernel is None else kernel @ v
                 u = (a / kv.clamp_min(floor)).clamp_max(u_max).pow(p)
-                ktu = self._kernel_vec(y, x, u, eps_step)
+                ktu = self._kernel_vec(y, x, u, eps_step) if kernel is None else kernel.t() @ u
                 v = (b / ktu.clamp_min(floor)).clamp_max(u_max).pow(p)
         return v
 

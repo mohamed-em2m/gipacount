@@ -83,12 +83,13 @@ loss:                        # [P] Eq. 12, §4.3
   name: generalized
   epsilon: 0.01
   tau: 0.5
-  sinkhorn_iters: 50
+  sinkhorn_iters: 20         # Wan et al.: ε-scaling converges in < 20 iterations
   epsilon_scaling: true
   epsilon_scale_start: 16.0
   chunk_size: 8192
+  kernel_cache_mb: 2048.0    # materialise the Gibbs kernel when it fits (impl. only)
   coord_norm: unit           # A10
-  dtype: float64             # A11
+  dtype: float32             # A11 (fp64 measurably needless: fp32 differs by ~5e-7 rel.)
   point_loss: l1
 
 optim:                       # [P] §4.3
@@ -105,7 +106,12 @@ trainer:
   steps_per_epoch: null
   val_every: 1
   seed: 0
-  deterministic: true
+  # Off by default: on CUDA, `torch.use_deterministic_algorithms(True)` makes
+  # torchvision route RoI-align through a lazily `torch.compile`d pure-Python
+  # kernel (seconds per step, and it crashes on torch builds with a broken
+  # Inductor).  Seeding still makes runs reproducible to the usual standard;
+  # set this to true on CPU when bit-exact repeatability is required.
+  deterministic: false
   amp: true
   device: auto
   output_dir: runs

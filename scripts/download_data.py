@@ -83,11 +83,18 @@ def _extract_zip(archive: Path, root: Path, *, force: bool = False) -> None:
 
 
 def _strip_common_prefix(name: str, root: Path) -> Path | None:
-    """Map an archive member to a path under ``root``, dropping one wrapper dir."""
+    """Map an archive member to a path under ``root``, dropping one wrapper dir.
+
+    Only *outer* wrapper directories are dropped: the layout expected under
+    ``root`` keeps the ``images_384_VarV2/`` directory, so it must not be
+    treated as a wrapper (the official archive already nests images one level
+    deep, e.g. ``images_384_VarV2/2.jpg``).  Archives that wrap everything in
+    an extra ``FSC147_384_V2/`` or ``FSC147/`` directory are unwrapped.
+    """
     parts = [p for p in Path(name).parts if p not in {".", "/"}]
     if not parts:
         return None
-    if parts[0] in {_FSC147_IMAGE_DIR, "FSC147", "FSC147_384_V2", "data"}:
+    if parts[0] in {"FSC147", "FSC147_384_V2", "data"}:
         parts = parts[1:]
     if not parts:
         return None

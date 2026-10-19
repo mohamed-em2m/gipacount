@@ -350,14 +350,22 @@ class LossConfig(_Base):
     epsilon: float = 0.01
     #: Transport term weight ``τ``. [P] 0.5
     tau: float = 0.5
-    #: Number of (generalized) Sinkhorn iterations.
-    sinkhorn_iters: int = 50
+    #: Number of (generalized) Sinkhorn iterations.  Wan et al. report that with
+    #: ε-scaling "less than 20 iterations until converge", so 20 is the faithful
+    #: budget (and ~2.5x cheaper than 50).
+    sinkhorn_iters: int = 20
     #: ε-scaling heuristic from Wan et al. for faster convergence (A11).
     epsilon_scaling: bool = True
     #: Initial ε as a multiple of ``epsilon`` when scaling is on.
     epsilon_scale_start: float = 16.0
     #: Pixel-axis chunk size for the ``N_pixels × N_points`` cost matrix (A10).
     chunk_size: int = 4096
+    #: Memory budget (MiB) for materialising the ``N_pixels × N_points`` Gibbs
+    #: kernel.  When it fits, the kernel is built **once per ε step** and reused
+    #: for both Sinkhorn directions, which roughly halves the loss cost; above
+    #: the budget the kernel is streamed chunk-wise instead (same maths).  This
+    #: is a pure implementation detail, it does not change the objective.
+    kernel_cache_mb: float = 256.0
     #: Coordinate frame of the cost matrix: unit-normalised (A10) or raw pixels.
     coord_norm: Literal["unit", "pixel"] = "unit"
     #: Precision of the optimal-transport solve (float64 avoids underflow in
