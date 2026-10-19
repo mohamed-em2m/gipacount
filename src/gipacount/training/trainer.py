@@ -314,6 +314,15 @@ class Trainer:
 
     def _maybe_save(self, val_metrics: dict[str, float], epoch: int, is_last: bool) -> None:
         cfg = self.cfg
+
+        improved = bool(val_metrics) and (
+            self.state.best_metric is None or val_metrics["mae"] < self.state.best_metric
+        )
+        if improved:
+            self.state.best_metric = val_metrics["mae"]
+
+        # Built *after* the update above so the persisted best metric is current
+        # (previously the checkpoint stored the previous epoch's best).
         save_kwargs: dict[str, Any] = {
             "model": self.model,
             "config": cfg,
@@ -326,11 +335,6 @@ class Trainer:
             "collator_state": self.train_collator.get_state(),
         }
 
-        improved = bool(val_metrics) and (
-            self.state.best_metric is None or val_metrics["mae"] < self.state.best_metric
-        )
-        if improved:
-            self.state.best_metric = val_metrics["mae"]
         if improved and cfg.trainer.save_best:
             save_checkpoint(self.run_dir / "best.pt", **save_kwargs)
             _LOGGER.info(
